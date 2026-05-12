@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>HR Director Simulator | Vantage Circle</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brand: #4F46E5;
+    --brand-dark: #3730A3;
+    --accent: #F59E0B;
+    --ink: #0F172A;
+  }
+  body { font-family: 'Inter', system-ui, sans-serif; color: var(--ink); }
+  .display { font-family: 'Fraunces', Georgia, serif; letter-spacing: -0.02em; }
+  .fade-in { animation: fadeIn 0.45s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .pop-in { animation: popIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes popIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+  .pill-in { animation: pillIn 0.5s ease-out forwards; opacity: 0; }
+  @keyframes pillIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .progress-fill { transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+  .stat-bar { transition: width 1.1s cubic-bezier(0.4, 0, 0.2, 1); }
+  .option-card { transition: all 0.18s ease; }
+  .option-card:hover { transform: translateY(-2px); border-color: var(--brand); box-shadow: 0 8px 24px -8px rgba(79, 70, 229, 0.25); }
+  .option-card.selected { border-color: var(--brand); background: linear-gradient(0deg, rgba(79,70,229,0.04), rgba(79,70,229,0.04)); }
+  .grain { background-image: radial-gradient(circle at 1px 1px, rgba(15,23,42,0.04) 1px, transparent 0); background-size: 12px 12px; }
+  .share-card { background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #2563EB 100%); }
+  ::selection { background: rgba(79, 70, 229, 0.15); }
+</style>
+</head>
+<body class="bg-slate-50 grain min-h-screen">
+<div id="app" class="max-w-3xl mx-auto px-4 py-8 md:py-14"></div>
+
+<!-- Email gate modal -->
+<div id="email-gate" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-7 fade-in relative">
+    <button onclick="closeEmailGate()" aria-label="Close" class="absolute top-3 right-3 w-8 h-8 inline-flex items-center justify-center rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+    <div class="text-xs font-bold uppercase tracking-widest text-indigo-600 mb-3">Personalized PDF Report</div>
+    <h3 class="display text-2xl font-bold text-slate-900 mb-2">Where should we send your report?</h3>
+    <p class="text-sm text-slate-600 mb-6 leading-relaxed">We'll generate a personalized 5-page PDF based on your year. Your archetype, your decisions, your counterfactuals, and reading curated for your scores.</p>
+    <form onsubmit="handleEmailSubmit(event)">
+      <div class="mb-3">
+        <label class="text-xs font-semibold text-slate-600 mb-1 block">Your name (optional)</label>
+        <input id="name-input" type="text" placeholder="Priya Mehra" class="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-indigo-500 focus:outline-none text-sm">
+      </div>
+      <div class="mb-5">
+        <label class="text-xs font-semibold text-slate-600 mb-1 block">Work email</label>
+        <input id="email-input" type="email" placeholder="you@company.com" class="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-indigo-500 focus:outline-none text-sm">
+      </div>
+      <button type="submit" class="w-full px-5 py-3 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/20">
+        Generate my report
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loading-overlay" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center fade-in">
+    <div class="w-12 h-12 mx-auto mb-5 relative">
+      <div class="absolute inset-0 border-4 border-indigo-100 rounded-full"></div>
+      <div class="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+    </div>
+    <div class="display text-lg font-bold text-slate-900 mb-2">Generating your report</div>
+    <div id="loading-step" class="text-sm text-slate-600">Computing your year...</div>
+    <div class="text-xs text-slate-400 mt-3">This typically takes 10-15 seconds</div>
+  </div>
+</div>
+
+<!-- Top brand strip -->
+<div class="fixed top-0 left-0 right-0 bg-white/85 backdrop-blur border-b border-slate-200 z-10">
+  <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">V</div>
+      <span class="text-sm font-semibold text-slate-900">Vantage Circle</span>
+      <span class="text-sm text-slate-400">·</span>
+      <span class="text-sm text-slate-500">HR Director Simulator</span>
+    </div>
+    <div class="text-xs text-slate-400 hidden md:block">Proof of Concept</div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  screen: 'welcome',
+  setup: { industry: null, stage: null, condition: null },
+  currentDecision: 0,
+  vars: null,
+  history: [],
+  pendingChoice: null,
+};
+
+const initialVars = () => ({
+  engagement: 60,
+  attritionRisk: 50,
+  budget: 100,
+  managerBuyin: 50,
+  equity: 55,
+  leadershipTrust: 55,
+  morale: 60,
+});
+
+const VAR_LABELS = {
+  engagement: 'Engagement',
+  attritionRisk: 'Attrition Risk',
+  budget: 'Budget Remaining',
+  managerBuyin: 'Manager Buy-in',
+  equity: 'Recognition Equity',
+  leadershipTrust: 'Leadership Trust',
+  morale: 'Employee Morale',
+};
+
+// Lower-is-better variables
+const INVERTED_VARS = ['attritionRisk'];
+
+// ============================================================
+// SETUP DATA
+// ============================================================
+const industries = [
+  { id: 'saas', label: 'SaaS', desc: 'Tech-driven, fast growth' },
+  { id: 'manufacturing', label: 'Manufacturing', desc: 'Plant + corporate workforce' },
+  { id: 'bfsi', label: 'BFSI', desc: 'Banking and financial services' },
+  { id: 'healthcare', label: 'Healthcare', desc: 'Hospitals, pharma, devices' },
+  { id: 'retail', label: 'Retail', desc: 'Stores, e-commerce, distribution' },
+];
+
+const stages = [
+  { id: 'growth', label: 'Growth Stage', desc: '200 to 500 employees' },
+  { id: 'mid', label: 'Mid Stage', desc: '500 to 2,000 employees' },
+  { id: 'enterprise', label: 'Enterprise', desc: '2,000+ employees' },
+];
+
+const conditions = [
+  { id: 'attrition', label: 'Attrition Crisis', desc: 'Last year hit 24% turnover' },
+  { id: 'merger', label: 'Post-Merger', desc: 'Two cultures need to integrate' },
+  { id: 'scaling', label: 'Rapid Scaling', desc: 'Headcount doubled this year' },
+  { id: 'stable', label: 'Stable but Flat', desc: 'No fires, no momentum' },
+];
+
+// ============================================================
+// 12 DECISIONS
+// ============================================================
+const decisions = [
+  {
+    quarter: 'Q1', month: 'January',
+    title: 'The Budget Allocation',
+    context: 'Your CFO has approved $400K for R&R this year. This single call shapes everything that follows.',
+    options: [
+      { label: 'One big annual program with high-value awards', desc: 'Top performers heavily rewarded once a year', impact: { equity: -10, leadershipTrust: 5, morale: -5, managerBuyin: -5 } },
+      { label: 'Many small frequent peer-to-peer awards', desc: 'Micro-recognition spread across the year', impact: { equity: 10, morale: 10, managerBuyin: 5, budget: -10 } },
+      { label: '60/40 split between formal awards and culture events', desc: 'Mix of structure and atmosphere', impact: { equity: 5, morale: 5, leadershipTrust: 5 } },
+      { label: 'Outsource to a SaaS recognition platform', desc: 'Vendor handles distribution, you set strategy', impact: { managerBuyin: 15, morale: 5, equity: 5, budget: 10 } },
+    ],
+    insight: 'Programs that combine structure with frequency outperform single-event programs by ~28% on engagement metrics in our platform data.',
+  },
+  {
+    quarter: 'Q1', month: 'February',
+    title: 'The Launch Strategy',
+    context: 'Budget is locked. The program design is drafted. Now: how do you roll it out?',
+    options: [
+      { label: 'All-employee launch on day one', desc: 'Big bang, full company at once', impact: { engagement: 10, managerBuyin: -10, leadershipTrust: 5 } },
+      { label: 'Pilot with one business unit first', desc: 'Test, refine, then scale', impact: { managerBuyin: 10, engagement: 5, leadershipTrust: 5 } },
+      { label: 'Leadership-only first, then cascade', desc: 'Senior leaders model the behavior', impact: { leadershipTrust: 15, equity: -10, morale: -5 } },
+      { label: 'Tiered by tenure', desc: 'Long-tenured employees first', impact: { equity: -10, engagement: 5, morale: -5 } },
+    ],
+    insight: 'Pilot launches succeed twice as often as big-bang launches because they bake in feedback before momentum is at risk.',
+  },
+  {
+    quarter: 'Q1', month: 'March',
+    title: 'The Communication',
+    context: 'Time to announce. The first 24 hours of comms shape how the program is received for the rest of the year.',
+    options: [
+      { label: 'All-hands video from the CEO', desc: 'Top-down, high signal', impact: { leadershipTrust: 15, morale: 5, managerBuyin: -5 } },
+      { label: 'Email cascade from HR', desc: 'Standard corporate comms', impact: { leadershipTrust: -5, managerBuyin: -5 } },
+      { label: 'Manager-led rollout in 1:1s', desc: 'Personal, high-context', impact: { managerBuyin: 15, leadershipTrust: 5, morale: 10 } },
+      { label: 'Intranet plus Slack rollout', desc: 'Async, self-serve', impact: { morale: 5, managerBuyin: -5 } },
+    ],
+    insight: 'Programs introduced via direct manager 1:1s see ~35% higher early participation than those announced by mass email.',
+  },
+  {
+    quarter: 'Q2', month: 'April',
+    title: 'The Award Mix',
+    context: 'You need to set your award philosophy. What gets recognized, and how?',
+    options: [
+      { label: 'Monetary heavy', desc: 'Cash, gift cards, vouchers dominate', impact: { morale: 5, equity: -10, attritionRisk: 5 } },
+      { label: 'Experience heavy', desc: 'Events, dinners, perks, gifts', impact: { morale: 10, managerBuyin: 5 } },
+      { label: 'Public recognition heavy', desc: 'Visibility, shoutouts, spotlights', impact: { equity: 10, morale: 10, attritionRisk: -5 } },
+      { label: 'Career growth tied', desc: 'Skills, learning, fast-track opportunities', impact: { attritionRisk: -15, leadershipTrust: 10 } },
+    ],
+    insight: 'Career-growth-tied recognition reduces voluntary attrition by ~22% in our data, but takes longer to land than visible awards.',
+  },
+  {
+    quarter: 'Q2', month: 'May',
+    title: 'The Q1 Crisis',
+    context: 'Engagement scores just dropped 8 points after rollout. The board meeting is in two weeks.',
+    options: [
+      { label: 'Pause and survey employees', desc: 'Listen before you act', impact: { leadershipTrust: 5, engagement: 5, managerBuyin: 5 } },
+      { label: 'Double down on rewards', desc: 'Bigger budgets, faster cycles', impact: { budget: -20, morale: 5, leadershipTrust: -5 } },
+      { label: 'Train managers on recognition', desc: 'Fix the delivery layer', impact: { managerBuyin: 15, engagement: 10, leadershipTrust: 5 } },
+      { label: 'Pivot to peer-to-peer recognition', desc: 'Decentralize the program', impact: { engagement: 10, equity: 10, morale: 5 } },
+    ],
+    insight: 'Manager training is the highest-ROI lever in recovery scenarios. Roughly 60% of struggling programs improve materially after this move.',
+  },
+  {
+    quarter: 'Q2', month: 'June',
+    title: 'The Manager Pushback',
+    context: 'Your dashboard shows 30% of managers have not used the program. They are silent in survey responses too.',
+    options: [
+      { label: 'Mandate participation with quotas', desc: 'Tie it to manager performance reviews', impact: { managerBuyin: -15, morale: -5, attritionRisk: 5 } },
+      { label: 'Gamify with leaderboards', desc: 'Public ranking of recognition activity', impact: { managerBuyin: 5, equity: -5 } },
+      { label: 'Train and certify managers', desc: 'Upskill, then expect adoption', impact: { managerBuyin: 20, leadershipTrust: 10, engagement: 10 } },
+      { label: 'Expose the laggards in dashboards', desc: 'Public accountability through transparency', impact: { managerBuyin: -20, leadershipTrust: -10, attritionRisk: 10 } },
+    ],
+    insight: 'Mandates and exposure rarely change manager behavior. Training plus social proof from peers does. The data here is unambiguous.',
+  },
+  {
+    quarter: 'Q3', month: 'July',
+    title: 'The Equity Audit',
+    context: 'A mid-year audit reveals 70% of recognition is going to Sales and Engineering. Operations, Support, and Admin functions are nearly invisible.',
+    options: [
+      { label: 'Set quotas for under-recognized functions', desc: 'Mandate distribution targets', impact: { equity: 15, managerBuyin: -10 } },
+      { label: 'Train leaders on equitable recognition', desc: 'Upstream education on bias', impact: { equity: 10, managerBuyin: 5, leadershipTrust: 5 } },
+      { label: 'Launch a "hidden hero" campaign', desc: 'Spotlight under-recognized contributors', impact: { equity: 15, morale: 10, engagement: 5 } },
+      { label: 'Accept it as natural distribution', desc: 'Trust the system to self-correct', impact: { equity: -10, morale: -10, attritionRisk: 10 } },
+    ],
+    insight: '"Hidden hero" campaigns are the most-shared equity intervention because they correct visibility gaps without coming across as forced quotas.',
+  },
+  {
+    quarter: 'Q3', month: 'August',
+    title: 'The Mid-Year Cut',
+    context: 'CFO walks in. Budget is being trimmed company-wide. Your R&R allocation drops by 30%. You have to absorb it.',
+    options: [
+      { label: 'Cut the big year-end award', desc: 'Preserve frequency, lose the headline', impact: { morale: -5, equity: 5 } },
+      { label: 'Cut frequency of awards', desc: 'Same headline, fewer touchpoints', impact: { morale: -10, engagement: -5 } },
+      { label: 'Shift to non-monetary recognition', desc: 'Public, peer, experience-led', impact: { budget: 10, equity: 10, morale: 5 } },
+      { label: 'Negotiate with the CFO', desc: 'Push back with ROI evidence', impact: { leadershipTrust: 10, budget: 15 } },
+    ],
+    insight: 'CFOs respond to ROI math, not loyalty pleas. HR Directors who quantified the cost of attrition kept their budgets in ~70% of cases.',
+  },
+  {
+    quarter: 'Q3', month: 'September',
+    title: 'The Merger',
+    context: 'Your company just acquired a 200-person team with its own existing culture. You have six weeks to figure out the integration.',
+    options: [
+      { label: 'Apply your program immediately', desc: 'One company, one program', impact: { managerBuyin: -10, morale: -10, engagement: -5 } },
+      { label: 'Run two programs in parallel', desc: 'Each side keeps its own', impact: { budget: -10, equity: -5 } },
+      { label: 'Build a hybrid program', desc: 'Bring in best of both', impact: { equity: 10, leadershipTrust: 10, managerBuyin: 5 } },
+      { label: 'Delay integration by six months', desc: 'Stabilize first, integrate later', impact: { morale: -5, leadershipTrust: -5 } },
+    ],
+    insight: 'Hybrid programs in post-merger contexts have the highest 12-month retention rate among acquired employees.',
+  },
+  {
+    quarter: 'Q4', month: 'October',
+    title: 'The Tech Decision',
+    context: 'Your spreadsheets are buckling. Time to add a real recognition platform. The CEO wants a recommendation by Friday.',
+    options: [
+      { label: 'Bring in a SaaS vendor like Vantage Circle', desc: 'Buy, integrate, scale', impact: { engagement: 15, managerBuyin: 15, equity: 10, budget: -10 } },
+      { label: 'Build it in-house', desc: 'Engineering can spare 2 quarters', impact: { budget: -30, engagement: 5, managerBuyin: -5 } },
+      { label: 'Use the existing HRIS module', desc: 'Cheap, basic functionality', impact: { engagement: 5, managerBuyin: -5 } },
+      { label: 'Delay another year', desc: 'Make spreadsheets work', impact: { engagement: -10, managerBuyin: -10 } },
+    ],
+    insight: 'Programs running on dedicated platforms see ~3x participation rates of those on spreadsheets or HRIS modules. In-house builds almost universally underdeliver.',
+  },
+  {
+    quarter: 'Q4', month: 'November',
+    title: 'The Year-End Push',
+    context: 'Q4 is closing. You have one final move to land the year well.',
+    options: [
+      { label: 'Big year-end bonus event', desc: 'Headline-grabbing close', impact: { budget: -25, morale: 10, leadershipTrust: 5 } },
+      { label: 'Run a Gratitude Week', desc: 'Low-cost, peer-led, high participation', impact: { morale: 10, equity: 10, budget: -5 } },
+      { label: 'Skip and save budget for next year', desc: 'Long view', impact: { leadershipTrust: -10, morale: -10, engagement: -10 } },
+      { label: 'Survey-based listening tour', desc: 'Capture a year of feedback for next year', impact: { leadershipTrust: 10, engagement: 5, managerBuyin: 5 } },
+    ],
+    insight: 'Gratitude Weeks and listening tours score higher than headline events on 90-day-after engagement, despite costing far less.',
+  },
+  {
+    quarter: 'Q4', month: 'December',
+    title: 'The Year-End Review',
+    context: 'You are presenting to the board. How do you frame the year?',
+    options: [
+      { label: 'Lead with engagement scores', desc: 'Soft metric, broadly understood', impact: { leadershipTrust: 5 } },
+      { label: 'Lead with attrition rate', desc: 'Hard metric, board-friendly', impact: { attritionRisk: -5, leadershipTrust: 10 } },
+      { label: 'Lead with recognition participation rate', desc: 'Operational, narrative-friendly', impact: { managerBuyin: 5 } },
+      { label: 'Lead with ROI calculation', desc: 'Cost of attrition saved, productivity gained', impact: { leadershipTrust: 15, budget: 5 } },
+    ],
+    insight: 'CHROs who lead with ROI win larger budgets the following year. Those who lead with engagement scores lose budget by ~10% on average.',
+  },
+];
+
+// ============================================================
+// LOGIC
+// ============================================================
+function clamp(n) { return Math.max(0, Math.min(100, n)); }
+
+function applyImpact(vars, impact) {
+  const next = { ...vars };
+  for (const [k, v] of Object.entries(impact)) {
+    next[k] = clamp(next[k] + v);
+  }
+  return next;
+}
+
+function computeOverall(vars) {
+  // weighted score, attritionRisk inverted
+  const score =
+    vars.engagement * 0.18 +
+    (100 - vars.attritionRisk) * 0.18 +
+    vars.budget * 0.08 +
+    vars.managerBuyin * 0.15 +
+    vars.equity * 0.15 +
+    vars.leadershipTrust * 0.13 +
+    vars.morale * 0.13;
+  return Math.round(score);
+}
+
+function computeArchetype(vars) {
+  const overall = computeOverall(vars);
+
+  // Burnout: morale very low or budget gutted
+  if (vars.morale < 35 || vars.budget < 25) {
+    return {
+      name: 'The Burnout',
+      tone: 'amber',
+      overall,
+      summary: 'You spent the year putting out fires. The program survived. Barely. Your team needs rest, not more programs.',
+      pctBeat: 28,
+    };
+  }
+
+  // Champion: high equity + morale
+  if (vars.equity >= 72 && vars.morale >= 70) {
+    return {
+      name: 'The Champion',
+      tone: 'emerald',
+      overall,
+      summary: 'You built a program that recognized everyone fairly and lifted the whole organization. The kind of year that gets case-studied.',
+      pctBeat: 89,
+    };
+  }
+
+  // Visionary: high leadership trust + engagement
+  if (vars.leadershipTrust >= 72 && vars.engagement >= 70) {
+    return {
+      name: 'The Visionary',
+      tone: 'indigo',
+      overall,
+      summary: 'You made the board care about recognition. Bold moves, ambitious narrative, real results. Recognition is now a strategic lever, not an HR program.',
+      pctBeat: 81,
+    };
+  }
+
+  // Bureaucrat: managerBuyin high but morale low
+  if (vars.managerBuyin >= 70 && vars.morale < 60) {
+    return {
+      name: 'The Bureaucrat',
+      tone: 'slate',
+      overall,
+      summary: 'You drove participation, but the heart of the program is missing. The dashboards look good. The hallways are quiet.',
+      pctBeat: 42,
+    };
+  }
+
+  // Pragmatist: balanced
+  return {
+    name: 'The Pragmatist',
+    tone: 'sky',
+    overall,
+    summary: 'You navigated trade-offs as they came. Some hits, some misses. A workable foundation. Next year is yours to compound.',
+    pctBeat: Math.max(35, Math.min(78, overall - 5)),
+  };
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+const app = document.getElementById('app');
+
+function go(screen) {
+  state.screen = screen;
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+const backBtn = () => `
+  <button onclick="restart()" class="text-sm text-slate-500 hover:text-slate-900 mb-6 flex items-center gap-1.5">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+    Return to Home
+  </button>
+`;
+
+function render() {
+  app.innerHTML = '';
+  switch (state.screen) {
+    case 'welcome': return renderWelcome();
+    case 'setup': return renderSetup();
+    case 'intro': return renderIntro();
+    case 'decision': return renderDecision();
+    case 'consequence': return renderConsequence();
+    case 'result': return renderResult();
+  }
+}
+
+// ----- WELCOME -----
+function renderWelcome() {
+  app.innerHTML = `
+    <div class="pt-16 pb-8 fade-in">
+      <div class="text-xs font-bold uppercase tracking-widest text-indigo-600 mb-4">Vantage Circle Lab · Interactive</div>
+      <h1 class="display text-5xl md:text-6xl font-bold leading-[1.05] text-slate-900 mb-5">
+        Play one year as<br/>an HR Director.
+      </h1>
+      <p class="text-lg md:text-xl text-slate-600 leading-relaxed max-w-xl mb-8">
+        You are new in the seat. The CEO wants a recognition program live this year. You have a budget, a team, and twelve hard decisions ahead of you. Make the calls. See your year.
+      </p>
+      <div class="flex flex-wrap gap-3 mb-12">
+        <button onclick="go('setup')" class="px-6 py-3.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">
+          Begin your year
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+        </button>
+        <div class="px-4 py-3.5 text-sm text-slate-500 flex items-center gap-2">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Takes about 6 minutes
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-10 border-t border-slate-200">
+        <div>
+          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">12 Decisions</div>
+          <p class="text-sm text-slate-600 leading-relaxed">Each decision branches. There is no obvious right answer. Real trade-offs from real customer programs.</p>
+        </div>
+        <div>
+          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Live Stat Tracking</div>
+          <p class="text-sm text-slate-600 leading-relaxed">Engagement, attrition, equity, manager buy-in, leadership trust. Watch them shift in real time.</p>
+        </div>
+        <div>
+          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Your Archetype</div>
+          <p class="text-sm text-slate-600 leading-relaxed">End the year as The Visionary, The Champion, The Pragmatist, The Bureaucrat, or The Burnout.</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ----- SETUP -----
+function renderSetup() {
+  const { industry, stage, condition } = state.setup;
+  const ready = industry && stage && condition;
+
+  const pickGroup = (label, items, key) => `
+    <div class="mb-7">
+      <div class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">${label}</div>
+      <div class="grid grid-cols-2 md:grid-cols-${items.length === 5 ? '5' : items.length} gap-2">
+        ${items.map(it => `
+          <button onclick="pick('${key}', '${it.id}')"
+            class="option-card text-left p-3 rounded-xl border-2 ${state.setup[key] === it.id ? 'selected border-indigo-600 bg-indigo-50/50' : 'border-slate-200 bg-white'}">
+            <div class="font-semibold text-sm text-slate-900 mb-0.5">${it.label}</div>
+            <div class="text-xs text-slate-500 leading-snug">${it.desc}</div>
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  app.innerHTML = `
+    <div class="pt-16 pb-8 fade-in">
+      ${backBtn()}
+      <h2 class="display text-3xl md:text-4xl font-bold text-slate-900 mb-2">Set up your company</h2>
+      <p class="text-slate-600 mb-10 leading-relaxed">Three choices. They shape your scenarios, your trade-offs, and the language of your year.</p>
+
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm">
+        ${pickGroup('Industry', industries, 'industry')}
+        ${pickGroup('Company Stage', stages, 'stage')}
+        ${pickGroup('Starting Condition', conditions, 'condition')}
+
+        <button onclick="${ready ? "startGame()" : ''}"
+          class="w-full px-6 py-4 rounded-xl font-semibold transition shadow-lg flex items-center justify-center gap-2 ${ready ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-600/20 cursor-pointer' : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'}">
+          Begin your year
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+window.pick = (key, val) => {
+  state.setup[key] = val;
+  render();
+};
+
+window.startGame = () => {
+  state.vars = initialVars();
+  state.currentDecision = 0;
+  state.history = [];
+  go('intro');
+};
+
+// ----- INTRO -----
+function renderIntro() {
+  const ind = industries.find(i => i.id === state.setup.industry).label;
+  const stg = stages.find(s => s.id === state.setup.stage).desc.toLowerCase();
+  const cond = conditions.find(c => c.id === state.setup.condition);
+
+  app.innerHTML = `
+    <div class="pt-20 pb-8 fade-in">
+      ${backBtn()}
+      <div class="text-xs font-bold uppercase tracking-widest text-indigo-600 mb-4">Year One · Day One</div>
+      <h2 class="display text-3xl md:text-5xl font-bold text-slate-900 leading-tight mb-6">
+        Your year begins.
+      </h2>
+      <div class="text-lg md:text-xl text-slate-700 leading-relaxed space-y-4 mb-10 max-w-2xl">
+        <p>You are the new HR Director at a ${stg} ${ind} company. Your start was greeted with a Slack message from the CEO and a stack of unsolved problems on your desk.</p>
+        <p><span class="font-semibold text-slate-900">${cond.label}.</span> ${cond.desc}. The board wants a recognition strategy by Q2. The CFO wants a budget plan by Friday.</p>
+        <p>You have twelve months. Twelve big calls. No obvious right answers.</p>
+      </div>
+      <button onclick="go('decision')" class="px-6 py-3.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">
+        Start with the first decision
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+      </button>
+    </div>
+  `;
+}
+
+// ----- DECISION -----
+function renderDecision() {
+  const idx = state.currentDecision;
+  const d = decisions[idx];
+  const progress = ((idx) / decisions.length) * 100;
+
+  app.innerHTML = `
+    <div class="pt-20 pb-8 fade-in">
+      ${backBtn()}
+      <div class="mb-8">
+        <div class="flex items-center justify-between text-xs font-semibold text-slate-500 mb-2">
+          <span>${d.quarter}</span>
+          <span>Decision ${idx + 1} of ${decisions.length}</span>
+        </div>
+        <div class="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+          <div class="progress-fill h-full bg-indigo-600 rounded-full" style="width: ${progress}%"></div>
+        </div>
+      </div>
+
+      <div class="text-xs font-bold uppercase tracking-widest text-indigo-600 mb-3">${d.quarter} · Decision ${idx + 1}</div>
+      <h2 class="display text-3xl md:text-4xl font-bold text-slate-900 leading-tight mb-4">${d.title}</h2>
+      <p class="text-lg text-slate-600 leading-relaxed mb-8 max-w-2xl">${d.context}</p>
+
+      <div class="space-y-3">
+        ${d.options.map((opt, i) => `
+          <button onclick="choose(${i})"
+            class="option-card w-full text-left p-5 rounded-xl border-2 border-slate-200 bg-white">
+            <div class="flex items-start gap-3">
+              <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 flex-shrink-0">${String.fromCharCode(65 + i)}</div>
+              <div class="flex-1">
+                <div class="font-semibold text-slate-900 mb-1">${opt.label}</div>
+                <div class="text-sm text-slate-500 leading-relaxed">${opt.desc}</div>
+              </div>
+            </div>
+          </button>
+        `).join('')}
+      </div>
+
+      ${renderStatBar()}
+    </div>
+  `;
+}
+
+function renderStatBar() {
+  const v = state.vars;
+  return `
+    <div class="mt-10 pt-6 border-t border-slate-200">
+      <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Live Stats</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        ${miniStat('engagement', v.engagement)}
+        ${miniStat('attritionRisk', v.attritionRisk, true)}
+        ${miniStat('managerBuyin', v.managerBuyin)}
+        ${miniStat('equity', v.equity)}
+      </div>
+    </div>
+  `;
+}
+
+function miniStat(key, val, inverted = false) {
+  const display = inverted ? 100 - val : val;
+  const tone = display >= 65 ? 'emerald' : display >= 45 ? 'amber' : 'rose';
+  return `
+    <div class="bg-white border border-slate-200 rounded-lg p-3">
+      <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">${VAR_LABELS[key]}</div>
+      <div class="flex items-baseline gap-2">
+        <div class="text-xl font-bold text-slate-900">${val}</div>
+        <div class="text-[10px] text-slate-400">/100</div>
+      </div>
+      <div class="h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
+        <div class="stat-bar h-full ${tone === 'emerald' ? 'bg-emerald-500' : tone === 'amber' ? 'bg-amber-500' : 'bg-rose-500'} rounded-full" style="width: ${display}%"></div>
+      </div>
+    </div>
+  `;
+}
+
+window.choose = (i) => {
+  const d = decisions[state.currentDecision];
+  const opt = d.options[i];
+  state.pendingChoice = { decision: d, option: opt, optionIndex: i };
+  state.history.push({ decision: state.currentDecision, choice: i });
+  state.vars = applyImpact(state.vars, opt.impact);
+  go('consequence');
+};
+
+// ----- CONSEQUENCE -----
+function renderConsequence() {
+  const { decision: d, option: opt } = state.pendingChoice;
+  const impactPills = Object.entries(opt.impact).map(([k, v], i) => {
+    const positive = INVERTED_VARS.includes(k) ? v < 0 : v > 0;
+    const tone = positive ? 'emerald' : 'rose';
+    const symbol = v > 0 ? '+' : '';
+    return `
+      <div class="pill-in inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-semibold ${tone === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}" style="animation-delay: ${i * 0.1}s">
+        ${VAR_LABELS[k]}
+        <span class="font-bold">${symbol}${v}</span>
+      </div>
+    `;
+  }).join('');
+
+  const isLast = state.currentDecision === decisions.length - 1;
+  const nextLabel = isLast ? 'See your year-end results' : 'Next decision';
+
+  app.innerHTML = `
+    <div class="pt-20 pb-8 fade-in">
+      ${backBtn()}
+      <div class="text-xs font-bold uppercase tracking-widest text-indigo-600 mb-3">${d.quarter} · Decision ${state.currentDecision + 1} · You chose</div>
+      <h2 class="display text-2xl md:text-3xl font-bold text-slate-900 leading-tight mb-2">${opt.label}</h2>
+      <p class="text-slate-600 leading-relaxed mb-8">${opt.desc}.</p>
+
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 mb-6 shadow-sm">
+        <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Stat impact</div>
+        <div class="flex flex-wrap gap-2">${impactPills}</div>
+      </div>
+
+      <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-6 mb-8 pop-in">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center">
+            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="text-xs font-bold uppercase tracking-widest text-indigo-700">From the platform data</div>
+        </div>
+        <p class="text-slate-700 leading-relaxed">${d.insight}</p>
+      </div>
+
+      <button onclick="advanceDecision()" class="px-6 py-3.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">
+        ${nextLabel}
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+      </button>
+    </div>
+  `;
+}
+
+window.advanceDecision = () => {
+  state.pendingChoice = null;
+  if (state.currentDecision === decisions.length - 1) {
+    go('result');
+  } else {
+    state.currentDecision++;
+    go('decision');
+  }
+};
+
+// ----- RESULT -----
+function renderResult() {
+  const a = computeArchetype(state.vars);
+  const v = state.vars;
+
+  const toneMap = {
+    emerald: { bg: 'from-emerald-500 to-teal-600', text: 'text-emerald-700', light: 'bg-emerald-50', border: 'border-emerald-200' },
+    indigo:  { bg: 'from-indigo-500 to-purple-600', text: 'text-indigo-700', light: 'bg-indigo-50',  border: 'border-indigo-200' },
+    sky:     { bg: 'from-sky-500 to-indigo-600',    text: 'text-sky-700',    light: 'bg-sky-50',     border: 'border-sky-200' },
+    slate:   { bg: 'from-slate-600 to-slate-800',   text: 'text-slate-700',  light: 'bg-slate-50',   border: 'border-slate-200' },
+    amber:   { bg: 'from-amber-500 to-orange-600',  text: 'text-amber-700',  light: 'bg-amber-50',   border: 'border-amber-200' },
+  };
+  const t = toneMap[a.tone];
+
+  const statBars = Object.entries(v).map(([key, val]) => {
+    const display = INVERTED_VARS.includes(key) ? 100 - val : val;
+    const barTone = display >= 65 ? 'bg-emerald-500' : display >= 45 ? 'bg-amber-500' : 'bg-rose-500';
+    return `
+      <div class="mb-3.5">
+        <div class="flex justify-between items-baseline mb-1.5">
+          <div class="text-sm font-medium text-slate-700">${VAR_LABELS[key]}</div>
+          <div class="text-sm font-bold text-slate-900">${val}<span class="text-slate-400 font-normal">/100</span></div>
+        </div>
+        <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div class="stat-bar h-full ${barTone} rounded-full" style="width: ${display}%"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  app.innerHTML = `
+    <div class="pt-20 pb-12 fade-in">
+      ${backBtn()}
+
+      <!-- Archetype reveal -->
+      <div class="bg-gradient-to-br ${t.bg} rounded-3xl p-8 md:p-10 text-white shadow-2xl pop-in mb-8">
+        <div class="text-xs font-bold uppercase tracking-widest opacity-80 mb-3">Your year-end archetype</div>
+        <h1 class="display text-5xl md:text-6xl font-bold leading-none mb-4">${a.name}</h1>
+        <p class="text-lg leading-relaxed opacity-95 max-w-2xl mb-6">${a.summary}</p>
+        <div class="flex items-center gap-6 pt-5 border-t border-white/25">
+          <div>
+            <div class="text-xs font-semibold opacity-80 mb-1">Final score</div>
+            <div class="text-3xl font-bold">${a.overall}<span class="text-xl opacity-70">/100</span></div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold opacity-80 mb-1">You beat</div>
+            <div class="text-3xl font-bold">${a.pctBeat}<span class="text-xl opacity-70">%</span></div>
+            <div class="text-xs opacity-70 mt-0.5">of other players</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stat breakdown -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm mb-6">
+        <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-5">Your year in numbers</div>
+        ${statBars}
+      </div>
+
+      <!-- Share card preview -->
+      <div class="mb-6">
+        <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Share to LinkedIn</div>
+        <div class="share-card rounded-2xl p-7 text-white shadow-2xl relative overflow-hidden">
+          <div class="absolute top-3 right-4 text-[10px] font-bold tracking-widest uppercase opacity-70">Vantage Circle · HR Director Simulator</div>
+          <div class="text-sm opacity-90 mb-2 mt-4">My year as an HR Director</div>
+          <div class="display text-4xl font-bold leading-tight mb-3">${a.name}</div>
+          <div class="flex items-center gap-5 mb-4">
+            <div>
+              <div class="text-3xl font-bold">${a.overall}<span class="text-lg opacity-70">/100</span></div>
+              <div class="text-xs opacity-70">Final score</div>
+            </div>
+            <div class="h-10 w-px bg-white/30"></div>
+            <div>
+              <div class="text-3xl font-bold">${a.pctBeat}%</div>
+              <div class="text-xs opacity-70">Beat of players</div>
+            </div>
+          </div>
+          <div class="text-xs opacity-80 italic max-w-md leading-relaxed">"${a.summary.split('.')[0]}."</div>
+        </div>
+      </div>
+
+      <!-- CTAs -->
+      <div class="flex flex-wrap gap-3">
+        <button onclick="openEmailGate()" class="px-6 py-3.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Download my year report (PDF)
+        </button>
+        <button onclick="restart()" class="px-5 py-3 rounded-xl bg-white border-2 border-slate-200 text-slate-700 font-semibold hover:border-slate-300 transition flex items-center gap-2">
+          Try again with different choices
+        </button>
+        <button onclick="alert('Mock share: in production, this would post to LinkedIn with your card.')" class="px-5 py-3 rounded-xl bg-white border-2 border-slate-200 text-slate-700 font-semibold hover:border-slate-300 transition flex items-center gap-2">
+          Share to LinkedIn
+        </button>
+      </div>
+
+      <div class="mt-10 pt-8 border-t border-slate-200 text-center">
+        <p class="text-xs text-slate-500">Click "Download my year report" above to generate a personalized 5-page PDF based on your actual playthrough.</p>
+      </div>
+    </div>
+  `;
+}
+
+window.restart = () => {
+  state.setup = { industry: null, stage: null, condition: null };
+  state.currentDecision = 0;
+  state.vars = null;
+  state.history = [];
+  state.pendingChoice = null;
+  go('welcome');
+};
+
+// ============================================================
+// PDF GENERATION
+// ============================================================
+
+// Average benchmarks (mocked — in production would come from real player data)
+const PLAYER_AVERAGES = {
+  engagement: 62, attritionRisk: 55, budget: 58,
+  managerBuyin: 58, equity: 60, leadershipTrust: 60, morale: 63,
+};
+
+// Detailed archetype content for the PDF report
+const ARCHETYPE_DETAILS = {
+  'The Visionary': {
+    oneLiner: 'You did not run a recognition program. You changed how leadership thinks about people.',
+    pattern: 'Visionaries make recognition strategic. They earn high leadership trust early through deliberate signaling — getting the CEO on stage, framing budget conversations in ROI terms, refusing to let R&R sit in the HR backwater. About 19% of players land here.',
+    wins: 'Boardrooms and CEO 1:1s. CFOs respect you because you bring numbers. CEOs trust you because you make their leadership signal land. Engineering teams ship more because their work is visible.',
+    struggles: 'Ground-level employee morale can lag your dashboards. The risk for Visionaries is that the program looks fantastic at the top of the org and feels distant on the floor.',
+    realWorld: 'Visionary CHROs include the leaders at companies that turn engagement into a board-level metric. Recognition is leverage, not a perk.',
+  },
+  'The Champion': {
+    oneLiner: 'You built a program that recognized everyone fairly and lifted the whole organization.',
+    pattern: 'Champions optimize for equity and morale. They invest in the under-recognized, train managers in fair distribution, and refuse to let recognition concentrate in the loudest functions. About 22% of players land here.',
+    wins: 'Employee Net Promoter Score. Internal mobility. Department-level engagement scores. Your weak performers improve more than your top performers — because you actually saw them.',
+    struggles: 'Boardroom narrative can feel softer than Visionary peers. Translating cultural wins into financial language is the recurring challenge.',
+    realWorld: 'Champion-archetype HR leaders show up in companies known for cultural depth. Often the leader the rest of the C-suite envies in private.',
+  },
+  'The Pragmatist': {
+    oneLiner: 'You navigated trade-offs as they came. A workable foundation. Next year is yours to compound.',
+    pattern: 'Pragmatists score balanced across all dimensions. They make defensible calls, avoid extreme moves, and end the year with a working program. About 38% of players land here — the largest cohort.',
+    wins: 'Reliability. CFO and CEO both think you are competent. The program is not a fire and is not a headline — both wins in many organizations.',
+    struggles: 'Compounding momentum. Pragmatists rarely break out into category-defining programs. The risk is that next year looks identical to this one.',
+    realWorld: 'Most operational HR leaders running successful but quiet programs. The backbone of the function. Often promoted to People Operations heads at growing companies.',
+  },
+  'The Bureaucrat': {
+    oneLiner: 'You drove participation, but the heart of the program is missing. Dashboards look good. Hallways are quiet.',
+    pattern: 'Bureaucrats score high on manager buy-in but lower on morale. They mandate, gamify, and measure their way to compliance — which works on a dashboard but lands flat with employees. About 12% of players.',
+    wins: 'Structure, compliance, audit-readiness. If your CEO measures success by participation rate, you win.',
+    struggles: 'The program feels performative to employees. When the survey results come in, the disconnect becomes hard to ignore.',
+    realWorld: 'Often emerges in highly process-driven environments. The fix is usually about voice, not process.',
+  },
+  'The Burnout': {
+    oneLiner: 'You spent the year putting out fires. The program survived. Barely. Your team needs rest, not more programs.',
+    pattern: 'Burnouts ran out of either budget or morale. The choices were not bad in isolation — they just compounded badly under crisis conditions. About 9% of players. Many had a tough starting condition.',
+    wins: 'Survival. The program did not collapse. You learned where the limits are. Year two with a better budget could be your Visionary year.',
+    struggles: 'Everything feels tactical. Strategic distance is hard to find when you are always reacting. Recovery starts with replenishment, not more activity.',
+    realWorld: 'Often the second-year HR Director who inherited a program in collapse. The path back is usually a 90-day reset followed by a deliberate re-launch.',
+  },
+};
+
+// Recommended reading per archetype (real VC blog post slugs)
+const RECOMMENDED_READING = {
+  'The Visionary': [
+    { title: 'Modern Employee Recognition Programs', why: 'Reframes recognition as a strategic capability rather than an HR program. Closest match to your operating philosophy.', slug: 'modern-employee-recognition-programs' },
+    { title: 'Agile Rewards and Recognition: Tips for HR', why: 'Pairs well with your ROI-first approach. Sharpens the rapid-feedback case for the next budget cycle.', slug: 'agile-rewards-and-recognition-for-hr' },
+    { title: 'AI in Employee Recognition', why: 'Visionaries lean into emerging tools first. Useful as you scope what next year could look like.', slug: 'ai-in-employee-recognition' },
+    { title: 'Workplace Equity', why: 'Equity tends to be the relative weak spot for Visionaries. Deepens the playbook beyond hidden-hero campaigns.', slug: 'workplace-equity' },
+    { title: 'Why Recognition Programs Need to Evolve', why: 'Frame for year-two planning. Especially relevant given a strategic Q4.', slug: 'why-recognition-programs-need-to-evolve-with-changing-employee-expectations-in-2025' },
+  ],
+  'The Champion': [
+    { title: 'Workplace Equity', why: 'Your strength. Reinforces the equity-first frame and gives you new angles to maintain it.', slug: 'workplace-equity' },
+    { title: 'Peer-to-Peer Recognition', why: 'Champions thrive when the program is decentralized. Practical guidance on scaling peer recognition.', slug: 'peer-to-peer-recognition' },
+    { title: 'High Impact Employee Recognition Programs', why: 'Cultural depth needs operational rigor. This piece helps translate values into systems.', slug: 'high-impact-employee-recognition-programs' },
+    { title: 'The 5Cs of Employee Engagement', why: 'A complementary frame to equity-led programs. Helps tie engagement to lived employee experience.', slug: '5cs-of-employee-engagement' },
+    { title: 'Modern Employee Recognition Programs', why: 'Champions sometimes lose the boardroom. This piece helps translate cultural wins into financial language.', slug: 'modern-employee-recognition-programs' },
+  ],
+  'The Pragmatist': [
+    { title: 'Modern Employee Recognition Programs', why: 'Ideas to compound from a balanced foundation into something more distinctive next year.', slug: 'modern-employee-recognition-programs' },
+    { title: 'Agile Rewards and Recognition: Tips for HR', why: 'Tightens the cycles between recognition and feedback. Pragmatists win by reducing lag.', slug: 'agile-rewards-and-recognition-for-hr' },
+    { title: 'Employee Recognition Budget', why: 'Budget tends to be the constraint for Pragmatists. Sharpens the case for next year.', slug: 'employee-recognition-budget' },
+    { title: 'Year-End Recognition Ideas', why: 'Most actionable next quarter. Practical ways to add visible momentum without large budget moves.', slug: 'year-end-recognition-ideas' },
+    { title: 'Why Recognition Programs Need to Evolve', why: 'Pragmatists risk repeating themselves. This piece helps reset the frame for year two.', slug: 'why-recognition-programs-need-to-evolve-with-changing-employee-expectations-in-2025' },
+  ],
+  'The Bureaucrat': [
+    { title: 'Peer-to-Peer Recognition', why: 'The strongest counter to top-down recognition. Decentralizes voice without losing structure.', slug: 'peer-to-peer-recognition' },
+    { title: 'Why Recognition Programs Need to Evolve', why: 'A frame for moving from compliance to lived recognition. Especially relevant given dashboard-heavy approach.', slug: 'why-recognition-programs-need-to-evolve-with-changing-employee-expectations-in-2025' },
+    { title: 'The 5Cs of Employee Engagement', why: 'Helps reconnect process discipline with employee experience.', slug: '5cs-of-employee-engagement' },
+    { title: 'Workplace Equity', why: 'Mandates and dashboards can mask real equity gaps. This piece adds depth to the audit playbook.', slug: 'workplace-equity' },
+    { title: 'Modern Employee Recognition Programs', why: 'A bridge from compliance-led to experience-led design.', slug: 'modern-employee-recognition-programs' },
+  ],
+  'The Burnout': [
+    { title: 'Crisis-Proof Recognition', why: 'Most directly relevant. A playbook for recognition under constraint.', slug: 'crisis-proof-recognition' },
+    { title: 'Employee Recognition During Crisis', why: 'Specific tactical guidance for low-budget, high-pressure environments.', slug: 'employee-recognition-during-crisis' },
+    { title: 'Employee Engagement During Crisis', why: 'Engagement recovery is the prerequisite for re-launching the program. Practical guide.', slug: 'employee-engagement-during-crisis' },
+    { title: 'Peer-to-Peer Recognition', why: 'When budgets are tight, peer recognition is the cheapest lever. Worth re-anchoring on this.', slug: 'peer-to-peer-recognition' },
+    { title: 'Year-End Recognition Ideas', why: 'Low-cost, high-impact ideas for your next quarter. Especially the listening tour.', slug: 'year-end-recognition-ideas' },
+  ],
+};
+
+// Email gate state
+const reportData = { name: '', email: '' };
+
+window.openEmailGate = () => {
+  document.getElementById('email-gate').classList.remove('hidden');
+  document.getElementById('email-gate').classList.add('flex');
+  setTimeout(() => document.getElementById('email-input').focus(), 100);
+};
+
+window.closeEmailGate = () => {
+  document.getElementById('email-gate').classList.add('hidden');
+  document.getElementById('email-gate').classList.remove('flex');
+};
+
+window.handleEmailSubmit = (event) => {
+  if (event) event.preventDefault();
+  reportData.name = document.getElementById('name-input').value || 'HR Director';
+  reportData.email = document.getElementById('email-input').value || '';
+  closeEmailGate();
+  startReportGeneration();
+};
+
+window.skipEmail = () => {
+  reportData.name = 'HR Director';
+  reportData.email = '';
+  closeEmailGate();
+  startReportGeneration();
+};
+
+function startReportGeneration() {
+  const overlay = document.getElementById('loading-overlay');
+  overlay.classList.remove('hidden');
+  overlay.classList.add('flex');
+
+  const steps = [
+    'Computing your year...',
+    'Building your timeline...',
+    'Visualizing your scores...',
+    'Personalizing your archetype...',
+    'Curating your reading list...',
+    'Finalizing your PDF...',
+  ];
+  const stepEl = document.getElementById('loading-step');
+  let i = 0;
+  stepEl.textContent = steps[0];
+  const interval = setInterval(() => {
+    i++;
+    if (i < steps.length) stepEl.textContent = steps[i];
+    else clearInterval(interval);
+  }, 1100);
+
+  setTimeout(() => {
+    generateAndDownloadPdf().finally(() => {
+      clearInterval(interval);
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+    });
+  }, 800);
+}
+
+// Compute counterfactual for a specific decision: what would the score have been
+// if the player had chosen a different (best alternative) option?
+function computeCounterfactuals(history) {
+  const results = [];
+  // Try inverting each decision; keep the top 3 with biggest score swings.
+  for (let i = 0; i < history.length; i++) {
+    const original = history[i].choice;
+    for (let alt = 0; alt < decisions[i].options.length; alt++) {
+      if (alt === original) continue;
+      // Replay full game with this one decision swapped
+      let v = initialVars();
+      for (let j = 0; j < history.length; j++) {
+        const c = j === i ? alt : history[j].choice;
+        v = applyImpact(v, decisions[j].options[c].impact);
+      }
+      const altScore = computeOverall(v);
+      const origScore = computeOverall(state.vars);
+      results.push({
+        decisionIdx: i,
+        decision: decisions[i],
+        originalChoice: original,
+        altChoice: alt,
+        scoreDelta: altScore - origScore,
+        altScore,
+      });
+    }
+  }
+  // Pick the 3 with biggest absolute swing (negative = your choice was great)
+  results.sort((a, b) => Math.abs(b.scoreDelta) - Math.abs(a.scoreDelta));
+  return results.slice(0, 3);
+}
+
+function getIndustryLabel(id) { return (industries.find(i => i.id === id) || {}).label || ''; }
+function getStageLabel(id) { return (stages.find(s => s.id === id) || {}).label || ''; }
+function getConditionLabel(id) { return (conditions.find(c => c.id === id) || {}).label || ''; }
+
+function buildReportHtml() {
+  const archetype = computeArchetype(state.vars);
+  const v = state.vars;
+  const detail = ARCHETYPE_DETAILS[archetype.name] || ARCHETYPE_DETAILS['The Pragmatist'];
+  const reading = RECOMMENDED_READING[archetype.name] || RECOMMENDED_READING['The Pragmatist'];
+  const counterfactuals = computeCounterfactuals(state.history);
+
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  // Build decisions timeline
+  const quarters = { 'Q1': [], 'Q2': [], 'Q3': [], 'Q4': [] };
+  state.history.forEach((h, i) => {
+    const d = decisions[i];
+    const choice = d.options[h.choice];
+    quarters[d.quarter].push({ idx: i, title: d.title, choiceLabel: choice.label });
+  });
+
+  const quarterTitles = { 'Q1': 'Foundations', 'Q2': 'The Pressure', 'Q3': 'The Mid-Year', 'Q4': 'The Close' };
+  const timelineHtml = Object.entries(quarters).map(([q, items]) => `
+    <div style="margin-bottom: 12pt;">
+      <div style="display: inline-block; font-size: 7.5pt; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: white; background: #4F46E5; padding: 3pt 8pt; border-radius: 3pt; margin-bottom: 6pt;">${q} — ${quarterTitles[q]}</div>
+      ${items.map(it => `
+        <div style="display: flex; gap: 10pt; padding: 5pt 0; border-bottom: 1px dashed #E2E8F0;">
+          <div style="width: 50pt; flex-shrink: 0; font-size: 8pt; font-weight: 700; color: #94A3B8; text-transform: uppercase;">#${it.idx + 1}</div>
+          <div style="flex: 1;">
+            <div style="font-size: 9.5pt; font-weight: 600; color: #0F172A;">${it.title}</div>
+            <div style="font-size: 8.5pt; color: #4F46E5;">→ ${it.choiceLabel}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+
+  // Build stat bars
+  const statBarsHtml = Object.entries(v).map(([key, val]) => {
+    const isInverted = INVERTED_VARS.includes(key);
+    const display = isInverted ? 100 - val : val;
+    const avg = isInverted ? 100 - PLAYER_AVERAGES[key] : PLAYER_AVERAGES[key];
+    const diff = display - avg;
+    const diffLabel = diff > 0 ? `+${diff} above avg` : `${diff} vs avg`;
+    return `
+      <div style="margin-bottom: 9pt;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 2pt;">
+          <span style="font-size: 9.5pt; font-weight: 600; color: #0F172A;">${VAR_LABELS[key]}${isInverted ? ' <span style="color: #94A3B8; font-weight: 400;">(lower is better)</span>' : ''}</span>
+          <span style="font-size: 8pt; color: #94A3B8;">avg ${PLAYER_AVERAGES[key]}</span>
+        </div>
+        <div style="height: 8pt; background: #F1F5F9; border-radius: 4pt; position: relative; overflow: hidden;">
+          <div style="height: 100%; width: ${display}%; background: linear-gradient(90deg, #4F46E5, #7C3AED); border-radius: 4pt;"></div>
+          <div style="position: absolute; top: -2pt; bottom: -2pt; left: ${avg}%; width: 1.5pt; background: #0F172A;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 2pt; font-size: 7.5pt;">
+          <span style="color: #4F46E5; font-weight: 700;">You: ${val}${val === 100 ? ' (capped)' : ''}</span>
+          <span style="color: ${diff > 0 ? '#059669' : '#94A3B8'};">${diffLabel}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Strengths and gaps
+  const sortable = Object.entries(v).map(([k, val]) => ({
+    key: k, label: VAR_LABELS[k],
+    score: INVERTED_VARS.includes(k) ? 100 - val : val,
+    rawScore: val,
+  })).sort((a, b) => b.score - a.score);
+  const strengths = sortable.slice(0, 3);
+  const gaps = sortable.slice(-3).reverse();
+
+  // Counterfactuals
+  const cfHtml = counterfactuals.map((cf, i) => {
+    const origLabel = cf.decision.options[cf.originalChoice].label;
+    const altLabel = cf.decision.options[cf.altChoice].label;
+    const tone = i === 0 ? 'amber' : 'slate';
+    const direction = cf.scoreDelta < 0 ? 'you chose well' : 'a different path was available';
+    return `
+      <div style="background: ${tone === 'amber' ? '#FFFBEB' : '#F8FAFC'}; border-left: 3px solid ${tone === 'amber' ? '#F59E0B' : '#94A3B8'}; padding: 10pt 12pt; border-radius: 0 4pt 4pt 0; margin-bottom: 8pt;">
+        <div style="font-size: 7.5pt; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: ${tone === 'amber' ? '#B45309' : '#64748B'}; margin-bottom: 3pt;">
+          ${i === 0 ? 'Most Pivotal Decision' : i === 1 ? 'High-Impact Alternative' : 'Worth Knowing'}
+        </div>
+        <div style="font-size: 10pt; font-weight: 700; color: #0F172A; margin-bottom: 3pt;">Decision ${cf.decisionIdx + 1} — ${cf.decision.title}</div>
+        <div style="font-size: 8.5pt; color: #64748B; margin-bottom: 4pt;">You chose: <strong style="color: #4F46E5;">${origLabel}</strong></div>
+        <div style="font-size: 9pt; line-height: 1.5; color: #1E293B;">If you had chosen "<strong>${altLabel}</strong>" instead, your final score would have been <strong style="background: #FEF3C7; padding: 1pt 3pt; border-radius: 2pt;">${cf.altScore}/100</strong> (${cf.scoreDelta < 0 ? 'you chose well — that path scored ' + Math.abs(cf.scoreDelta) + ' points lower' : 'that path scored ' + cf.scoreDelta + ' points higher'}).</div>
+      </div>
+    `;
+  }).join('');
+
+  // Recommended reading
+  const readingHtml = reading.map((r, i) => `
+    <div style="display: flex; gap: 10pt; padding: 8pt 0; border-bottom: 1px solid #E2E8F0;">
+      <div style="flex-shrink: 0; width: 22pt; height: 22pt; background: #EEF2FF; color: #4F46E5; border-radius: 4pt; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 10pt;">0${i+1}</div>
+      <div style="flex: 1;">
+        <div style="font-size: 10pt; font-weight: 600; color: #0F172A; margin-bottom: 1pt;">${r.title}</div>
+        <div style="font-size: 8.5pt; color: #64748B; line-height: 1.4; margin-bottom: 2pt;">${r.why}</div>
+        <div style="font-size: 7.5pt; color: #4F46E5; font-family: 'SF Mono', Menlo, monospace;">vantagecircle.com/en/blog/${r.slug}</div>
+      </div>
+    </div>
+  `).join('');
+
+  // Setup line
+  const setupLine = `${getIndustryLabel(state.setup.industry)} · ${getStageLabel(state.setup.stage)} · ${getConditionLabel(state.setup.condition)}`;
+
+  return `
+<div id="report-content" style="width: 210mm; font-family: Inter, -apple-system, sans-serif; color: #0F172A; line-height: 1.45; font-size: 10pt;">
+
+<!-- PAGE 1: COVER -->
+<div class="pdf-page" style="width: 210mm; height: 297mm; padding: 22mm 18mm; background: linear-gradient(135deg, #4F46E5 0%, #6D28D9 50%, #2563EB 100%); color: white; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div style="display: flex; align-items: center; gap: 8pt; font-weight: 700; font-size: 10pt;">
+      <div style="width: 22pt; height: 22pt; background: white; color: #4F46E5; border-radius: 4pt; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13pt;">V</div>
+      <span>Vantage Circle</span>
+    </div>
+    <div style="text-align: right; font-size: 8.5pt; opacity: 0.85; line-height: 1.5;">
+      <strong>${reportData.name}</strong><br>${setupLine}<br>${today}
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size: 8.5pt; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.85; margin-bottom: 8pt;">HR Director Simulator · Personalized Report</div>
+    <h1 style="font-family: Fraunces, Georgia, serif; font-size: 42pt; font-weight: 700; line-height: 1.0; margin: 0 0 18pt 0; letter-spacing: -0.025em;">Your Year in<br>Recognition.</h1>
+    <p style="font-size: 13pt; opacity: 0.92; margin-bottom: 24pt; line-height: 1.4; max-width: 130mm;">A look back at twelve decisions, seven moving parts, and one year of recognition strategy. This is what your year actually looked like.</p>
+
+    <div style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25); border-radius: 6pt; padding: 14pt 18pt; margin-bottom: 14pt;">
+      <div style="font-size: 8pt; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.8; margin-bottom: 4pt;">Your Archetype</div>
+      <div style="font-family: Fraunces, Georgia, serif; font-size: 36pt; font-weight: 700; line-height: 1.0; margin-bottom: 10pt;">${archetype.name}</div>
+      <div style="display: flex; gap: 24pt; padding-top: 10pt; border-top: 1px solid rgba(255,255,255,0.25);">
+        <div>
+          <div style="font-size: 7.5pt; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; margin-bottom: 2pt;">Final Score</div>
+          <div style="font-size: 24pt; font-weight: 700; line-height: 1;">${archetype.overall}<span style="font-size: 13pt; opacity: 0.7; font-weight: 500;">/100</span></div>
+        </div>
+        <div>
+          <div style="font-size: 7.5pt; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; margin-bottom: 2pt;">You Beat</div>
+          <div style="font-size: 24pt; font-weight: 700; line-height: 1;">${archetype.pctBeat}<span style="font-size: 13pt; opacity: 0.7; font-weight: 500;">%</span></div>
+        </div>
+        <div>
+          <div style="font-size: 7.5pt; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; margin-bottom: 2pt;">Standout</div>
+          <div style="font-size: 14pt; font-weight: 700; line-height: 1; padding-top: 6pt;">${strengths[0].label}</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: rgba(15, 23, 42, 0.25); border-radius: 5pt; padding: 11pt 14pt; font-size: 10pt; line-height: 1.55; font-style: italic; opacity: 0.96;">
+      ${detail.oneLiner}
+    </div>
+  </div>
+
+  <div style="font-size: 7.5pt; opacity: 0.7; letter-spacing: 0.1em; text-transform: uppercase;">
+    Generated by the <strong style="color: white; opacity: 1;">Vantage Circle HR Director Simulator</strong>
+  </div>
+</div>
+
+<!-- PAGE 2: TIMELINE + SCORES -->
+<div class="pdf-page" style="width: 210mm; height: 297mm; padding: 16mm 18mm; box-sizing: border-box; background: white; overflow: hidden;">
+  <div style="display: flex; justify-content: space-between; padding-bottom: 8pt; margin-bottom: 14pt; border-bottom: 1px solid #E2E8F0; font-size: 8pt; color: #64748B;">
+    <div style="display: flex; align-items: center; gap: 6pt; font-weight: 600; color: #0F172A;">
+      <span style="width: 16pt; height: 16pt; background: #4F46E5; border-radius: 3pt; color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 9pt;">V</span>
+      Vantage Circle · HR Director Simulator
+    </div>
+    <div>Page 2 · Your Year in Decisions</div>
+  </div>
+
+  <div style="font-size: 8pt; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #4F46E5; margin-bottom: 6pt;">Section 01 · The Year</div>
+  <h2 style="font-family: Fraunces, Georgia, serif; font-size: 22pt; font-weight: 700; line-height: 1.05; margin: 0 0 6pt 0; letter-spacing: -0.02em;">Your year in twelve decisions.</h2>
+  <p style="font-size: 10.5pt; color: #475569; line-height: 1.5; margin-bottom: 14pt; max-width: 145mm;">Every choice you made, in the order you made it.</p>
+
+  ${timelineHtml}
+</div>
+
+<!-- PAGE 3: SCORE BREAKDOWN -->
+<div class="pdf-page" style="width: 210mm; height: 297mm; padding: 16mm 18mm; box-sizing: border-box; background: white; overflow: hidden;">
+  <div style="display: flex; justify-content: space-between; padding-bottom: 8pt; margin-bottom: 14pt; border-bottom: 1px solid #E2E8F0; font-size: 8pt; color: #64748B;">
+    <div style="display: flex; align-items: center; gap: 6pt; font-weight: 600; color: #0F172A;">
+      <span style="width: 16pt; height: 16pt; background: #4F46E5; border-radius: 3pt; color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 9pt;">V</span>
+      Vantage Circle · HR Director Simulator
+    </div>
+    <div>Page 3 · Your Score Breakdown</div>
+  </div>
+
+  <div style="font-size: 8pt; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #4F46E5; margin-bottom: 6pt;">Section 02 · The Numbers</div>
+  <h2 style="font-family: Fraunces, Georgia, serif; font-size: 22pt; font-weight: 700; line-height: 1.05; margin: 0 0 6pt 0; letter-spacing: -0.02em;">Your year, in seven numbers.</h2>
+  <p style="font-size: 10.5pt; color: #475569; line-height: 1.5; margin-bottom: 14pt;">Each variable tracks one dimension of your program's health. The black bar marks the average across all simulator players.</p>
+
+  ${statBarsHtml}
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; margin-top: 12pt;">
+    <div style="background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 5pt; padding: 10pt 12pt;">
+      <div style="font-size: 7.5pt; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #047857; margin-bottom: 6pt;">Your Top 3 Strengths</div>
+      ${strengths.map(s => `<div style="display: flex; justify-content: space-between; font-size: 9pt; color: #0F172A; padding: 2pt 0;"><span>${s.label}</span><span style="font-weight: 700;">${s.rawScore}</span></div>`).join('')}
+    </div>
+    <div style="background: #FFF7ED; border: 1px solid #FED7AA; border-radius: 5pt; padding: 10pt 12pt;">
+      <div style="font-size: 7.5pt; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #C2410C; margin-bottom: 6pt;">Where to Compound Next</div>
+      ${gaps.map(g => `<div style="display: flex; justify-content: space-between; font-size: 9pt; color: #0F172A; padding: 2pt 0;"><span>${g.label}</span><span style="font-weight: 700;">${g.rawScore}</span></div>`).join('')}
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 4: ARCHETYPE + COUNTERFACTUALS -->
+<div class="pdf-page" style="width: 210mm; height: 297mm; padding: 16mm 18mm; box-sizing: border-box; background: white; overflow: hidden;">
+  <div style="display: flex; justify-content: space-between; padding-bottom: 8pt; margin-bottom: 14pt; border-bottom: 1px solid #E2E8F0; font-size: 8pt; color: #64748B;">
+    <div style="display: flex; align-items: center; gap: 6pt; font-weight: 600; color: #0F172A;">
+      <span style="width: 16pt; height: 16pt; background: #4F46E5; border-radius: 3pt; color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 9pt;">V</span>
+      Vantage Circle · HR Director Simulator
+    </div>
+    <div>Page 4 · Your Archetype</div>
+  </div>
+
+  <div style="font-size: 8pt; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #4F46E5; margin-bottom: 6pt;">Section 03 · Who You Played As</div>
+  <h2 style="font-family: Fraunces, Georgia, serif; font-size: 22pt; font-weight: 700; line-height: 1.05; margin: 0 0 12pt 0; letter-spacing: -0.02em;">What it means to be ${archetype.name.toLowerCase().replace('the ', 'a ')}.</h2>
+
+  <div style="background: linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 100%); border-left: 4px solid #4F46E5; padding: 12pt 16pt; border-radius: 0 5pt 5pt 0; margin-bottom: 14pt;">
+    <div style="font-family: Fraunces, Georgia, serif; font-size: 22pt; font-weight: 700; margin-bottom: 4pt; color: #3730A3;">${archetype.name}</div>
+    <div style="font-size: 10pt; color: #4338CA; font-style: italic;">"${detail.oneLiner}"</div>
+  </div>
+
+  <div style="margin-bottom: 11pt;">
+    <h3 style="font-size: 9pt; font-weight: 700; color: #4F46E5; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4pt;">The Pattern</h3>
+    <p style="font-size: 9.5pt; line-height: 1.55; color: #1E293B;">${detail.pattern}</p>
+  </div>
+  <div style="margin-bottom: 11pt;">
+    <h3 style="font-size: 9pt; font-weight: 700; color: #4F46E5; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4pt;">Where You Win</h3>
+    <p style="font-size: 9.5pt; line-height: 1.55; color: #1E293B;">${detail.wins}</p>
+  </div>
+  <div style="margin-bottom: 14pt;">
+    <h3 style="font-size: 9pt; font-weight: 700; color: #4F46E5; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4pt;">Where You Get Caught</h3>
+    <p style="font-size: 9.5pt; line-height: 1.55; color: #1E293B;">${detail.struggles}</p>
+  </div>
+
+  <div style="font-size: 8pt; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #4F46E5; margin-bottom: 6pt;">Section 04 · Roads Not Taken</div>
+  <h2 style="font-family: Fraunces, Georgia, serif; font-size: 18pt; font-weight: 700; line-height: 1.05; margin: 0 0 8pt 0;">If you had played differently.</h2>
+  ${cfHtml}
+</div>
+
+<!-- PAGE 5: RECOMMENDED READING + CTAs -->
+<div class="pdf-page" style="width: 210mm; height: 297mm; padding: 16mm 18mm; box-sizing: border-box; background: white; overflow: hidden;">
+  <div style="display: flex; justify-content: space-between; padding-bottom: 8pt; margin-bottom: 14pt; border-bottom: 1px solid #E2E8F0; font-size: 8pt; color: #64748B;">
+    <div style="display: flex; align-items: center; gap: 6pt; font-weight: 600; color: #0F172A;">
+      <span style="width: 16pt; height: 16pt; background: #4F46E5; border-radius: 3pt; color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 9pt;">V</span>
+      Vantage Circle · HR Director Simulator
+    </div>
+    <div>Page 5 · What's Next</div>
+  </div>
+
+  <div style="font-size: 8pt; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #4F46E5; margin-bottom: 6pt;">Section 05 · Curated for You</div>
+  <h2 style="font-family: Fraunces, Georgia, serif; font-size: 22pt; font-weight: 700; line-height: 1.05; margin: 0 0 6pt 0; letter-spacing: -0.02em;">Five reads, hand-picked for ${archetype.name.toLowerCase()}s.</h2>
+  <p style="font-size: 10.5pt; color: #475569; line-height: 1.5; margin-bottom: 12pt;">Each piece below was chosen against your final scores and decision pattern.</p>
+
+  <div style="margin-bottom: 14pt;">
+    ${readingHtml}
+  </div>
+
+  <div style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: white; padding: 14pt 16pt; border-radius: 6pt; margin-top: 8pt;">
+    <div style="font-size: 7.5pt; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.85; margin-bottom: 4pt;">Want to talk through your real program?</div>
+    <div style="font-size: 12pt; font-weight: 700; margin-bottom: 4pt;">See what your simulated year looks like with real data.</div>
+    <div style="font-size: 9.5pt; line-height: 1.5; opacity: 0.95;">Your simulated year used outcome patterns from 2M+ users on the Vantage Circle platform. Talk to us about what your actual recognition program could look like next year. <strong>vantagecircle.com</strong></div>
+  </div>
+
+  <div style="margin-top: 18pt; padding-top: 12pt; border-top: 2px solid #4F46E5; text-align: center;">
+    <div style="font-family: Fraunces, Georgia, serif; font-size: 16pt; font-weight: 700; color: #0F172A; margin-bottom: 3pt;">Thank you for playing.</div>
+    <div style="font-size: 9pt; color: #64748B; line-height: 1.5;">
+      Every score, comparison, and counterfactual was computed from your specific playthrough.<br>
+      <span style="color: #4F46E5; font-weight: 600;">vantagecircle.com</span>
+    </div>
+  </div>
+</div>
+
+</div>
+  `;
+}
+
+async function generateAndDownloadPdf() {
+  const html = buildReportHtml();
+  let container = document.getElementById('report-render-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'report-render-container';
+    document.body.appendChild(container);
+  }
+  // Render off-screen but at correct size so html2canvas can capture each page accurately
+  container.style.cssText = 'position: fixed; left: -10000px; top: 0; width: 210mm; background: white;';
+  container.innerHTML = html;
+
+  // Wait one paint frame so fonts and layout settle
+  await new Promise(r => setTimeout(r, 250));
+
+  const archetype = computeArchetype(state.vars);
+  const safeName = (reportData.name || 'HR-Director').replace(/[^a-zA-Z0-9]+/g, '-');
+  const filename = `${safeName}-${archetype.name.replace(/\s+/g, '-')}-Report.pdf`;
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const pages = container.querySelectorAll('.pdf-page');
+
+    for (let i = 0; i < pages.length; i++) {
+      if (i > 0) pdf.addPage();
+      const canvas = await html2canvas(pages[i], {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: null,
+        width: pages[i].offsetWidth,
+        height: pages[i].offsetHeight,
+        windowWidth: pages[i].offsetWidth,
+        windowHeight: pages[i].offsetHeight,
+      });
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+    }
+
+    pdf.save(filename);
+  } catch (err) {
+    console.error('PDF generation failed:', err);
+    alert('Sorry, the PDF generation hit an error. Check the browser console for details.');
+  }
+}
+
+// Boot
+render();
+</script>
+</body>
+</html>
